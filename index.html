@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<head>
+    <title>ECE554 Alarm</title>
+    <link href='https://fonts.googleapis.com/css?family=VT323' rel='stylesheet'>
+    <style>
+        h2 {
+            color: #003333
+        }
+        .area {
+            height: 70px;
+            padding: 5px;
+            margin: 6px;
+        }
+
+        .text-area-class {
+            width: 400px;
+            font-size: 18px;
+        }
+
+        .alarm-text {
+            font-family: "VT323", "Courier New", monospace;
+            font-size: 48px;
+            font-weight: bolder;
+            color: red;
+            width: 200px;
+            background: #222222;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .off-button {
+            border-radius: 8px;
+            font-size: 16px;
+            background-color: red;
+            color: white;
+        }
+        .submit-button {
+            border-radius: 8px;
+            font-size: 16px;
+
+        }
+        .debug-button {
+            font-size: 14px;
+            background-color: #BBBBBB
+        }
+    </style>
+</head>
+
+<body>
+    <h2>ECE 554 Distributed Alarm</h2>
+    <h3>Bayer, Kobely, & Waterbury</h3>
+    <div/>
+    <button id='disable-alarm' name='disable-button' value='Turn Off Alarm' type='submit' class='off-button'
+            onclick='turnOffAlarm()'>
+        Turn Off Alarm
+    </button>
+    <div/>
+    <label>Select a time (HH:MM AM/PM): </label>
+    <input type='time' id='time-selector' name='alarm-time' required placeholder='13:30'/>
+    <button id='submitButton' name='submit' value='Set Time' type='submit' disabled class='submit-button'
+            onclick='setToUserEnteredTime()'>
+        Set Time
+    </button>
+    <div/>
+
+    <textarea id='submit-text' disabled class='area text-area-class'>
+        </textarea>
+    <textarea id='alarm-time-text' disabled class='area alarm-text'>
+        </textarea>
+    <div/>
+
+    <div/>
+    <hr/>
+    <div>
+        <table>
+            <tr>
+                <td>
+                    <button id='debug-0600' name='debug-0600-button' type='submit' class='debug-button'
+                            onclick='setToHardCodedTime("06:00")'>
+                        DEBUG - set to 0600
+                    </button>
+                </td>
+                <td>
+                    <button id='debug-1800' name='debug-1800-button' type='submit' class='debug-button'
+                            onclick='setToHardCodedTime("18:00")'>
+                        DEBUG - set to 1800
+                    </button>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <button id='debug-now' name='debug-now-button' type='submit' class='debug-button' onclick='setAlarmNow(1)'>
+                        DEBUG - set to NOW + 1m
+                    </button>
+                </td>
+                <td>
+                    <button id='debug-now-plus-2' name='debug-nowplus2-button' type='submit' class='debug-button' onclick='setAlarmNow(2)'>
+                        DEBUG - set to NOW + 2m
+                    </button>
+                </td>
+
+            </tr>
+        </table>
+    </div>
+    <script>
+        let alarmTime = '00:00'
+        let alarmEnabled = false;
+        document.getElementById('submitButton').disabled = false;
+        document.getElementById('time-selector').value = '12:00';
+        document.getElementById('alarm-time-text').textContent = '--:--';
+
+        function turnOffAlarm() {
+            printTimeOfFunction('Request to shut off alarm received at');
+            alarmEnabled = false;
+            document.getElementById('submit-text').textContent = 'Alarm set off'
+            document.getElementById('disable-alarm').disabled = true;
+            document.getElementById('time-selector').value = null;
+            document.getElementById('alarm-time-text').textContent = '--:--';
+            // make GET web request to 192.168.4.1/alarmOff
+            const url = 'http://192.168.4.1/alarmOff';
+            console.debug('Alarm off');
+            fetch(url, {method: 'GET'}).then(function (response) {
+                if (response.ok) {
+                    printTimeOfFunction('Request to shut off alarm completed at');
+                }
+            });
+        }
+
+        function setToUserEnteredTime() {
+            printTimeOfFunction('Request to set alarm received at');
+            const timeSet = document.getElementById('time-selector').value;
+            console.log('You entered: ', timeSet);
+            document.getElementById('disable-alarm').disabled = false;
+            setAlarmHelper(timeSet);
+        }
+
+        function setToHardCodedTime(enteredTime) {
+            printTimeOfFunction('Request to set alarm received at');
+            document.getElementById('disable-alarm').disabled = false;
+            console.log('Setting Alarm to : ', enteredTime);
+            setAlarmHelper(enteredTime);
+        }
+
+        function setAlarmNow(additionalMinutes) {
+            printTimeOfFunction('Request to set alarm received at');
+            document.getElementById('disable-alarm').disabled = false;
+            let d = new Date();
+            d.setTime(d.getTime() + additionalMinutes * 60 * 1000);
+            const timeNow = d.toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit'});
+            console.log('Setting Alarm to: ', timeNow);
+            setAlarmHelper(timeNow);
+        }
+
+        function setAlarmHelper(alarmTimeParam) {
+            alarmTime = alarmTimeParam;
+            alarmEnabled = true;
+            document.getElementById('submit-text').textContent = 'The time you entered is: ' + alarmTime;
+            document.getElementById('alarm-time-text').textContent = alarmTime;
+            console.debug('The time in the helper is: ' + alarmTime);
+            // make GET web request to 192.168.4.1/setAlarm?value=<time>
+            let url = 'http://192.168.4.1/setAlarm?value=' + alarmTime;
+            fetch(url, {method: 'GET'}).then(function (response) {
+                if (response.ok) {
+                    printTimeOfFunction('Request to set alarm successfully completed at');
+                }
+            });
+        }
+
+        function printTimeOfFunction(customString) {
+            const d0 = new Date();
+            console.log(customString, ' [ISO] ', d0.toISOString());
+            console.debug(customString, ' [Local] ', d0.toLocaleString());
+        }
+    </script>
+</body>
+</html>
