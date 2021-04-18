@@ -115,7 +115,6 @@ bool alarmTriggerState(String alarmTriggerFlag) //switch case in main? depends h
     digitalWrite(buzzer,HIGH);
     digitalWrite(redLED, HIGH);
     digitalWrite(greenLED, LOW);
-    //add in if button isnt pressed wait here, if its pressed then it can exit
   }
   else
   {
@@ -134,7 +133,7 @@ bool lightState()
   Serial.println("Analog value : ");
   Serial.println(lightValue);
 
-  if (lightValue < 4000){ //adjust value based on typical lightvalue
+  if (lightValue < 2000){ //adjust value based on typical lightvalue
     return false;
   }
   else{

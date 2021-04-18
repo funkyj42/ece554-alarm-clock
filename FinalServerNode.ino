@@ -15,7 +15,6 @@ bool lightState();
 bool alarmOffFunction();
 
 //LCD, LED, Buzzer vars
-//const int rs = 19, en = 23, d4 = 18, d5 = 17, d6 = 16, d7 = 15; //optimize with line below
 LiquidCrystal lcd(19, 23, 18, 17, 16, 15);
 int buzzer = 4;
 int redLED = 2;
@@ -77,10 +76,10 @@ void IRAM_ATTR buttonISR(){
 ////////////////Interrupt Setup////////////////////
 hw_timer_t * timer0 = NULL;
 hw_timer_t * timer1 = NULL;
-hw_timer_t * timer2 = NULL;
+
 portMUX_TYPE timerMux0 = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE timerMux1 = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE timerMux2 = portMUX_INITIALIZER_UNLOCKED;
+
 
 void IRAM_ATTR onTimer0(){
   // Critical Code here
@@ -96,15 +95,186 @@ void IRAM_ATTR onTimer1(){
   flag_lightStatus = lightState();
   portEXIT_CRITICAL_ISR(&timerMux1);
 }
-//void IRAM_ATTR onTimer2(){
-//  // Critical Code here
-//  portENTER_CRITICAL_ISR(&timerMux2);
-// 
-//  portEXIT_CRITICAL_ISR(&timerMux2);
-//}
-
 
 //////////////////////////////Web Page//////////////////////////////////////
+const char index_html[] PROGMEM = R"rawliteral( //start of html code for website
+<!DOCTYPE html>
+<head>
+    <title>ECE554 Alarm</title>
+    <link href='https://fonts.googleapis.com/css?family=VT323' rel='stylesheet'>
+    <style>
+        h2 {
+            color: #003333
+        }
+        .area {
+            height: 70px;
+            padding: 5px;
+            margin: 6px;
+        }
+
+        .text-area-class {
+            width: 400px;
+            font-size: 18px;
+        }
+
+        .alarm-text {
+            font-family: 'VT323', 'Courier New', monospace;
+            font-size: 48px;
+            font-weight: bolder;
+            color: red;
+            width: 200px;
+            background: #222222;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .off-button {
+            border-radius: 8px;
+            font-size: 16px;
+            background-color: red;
+            color: white;
+        }
+        .submit-button {
+            border-radius: 8px;
+            font-size: 16px;
+
+        }
+        .debug-button {
+            font-size: 14px;
+            background-color: #BBBBBB
+        }
+    </style>
+</head>
+
+<body>
+    <h2>ECE 554 Distributed Alarm</h2>
+    <h3>Bayer, Kobely, & Waterbury</h3>
+    <div/>
+    <button id='disable-alarm' name='disable-button' value='Turn Off Alarm' type='submit' class='off-button'
+            onclick='turnOffAlarm()'>
+        Turn Off Alarm
+    </button>
+    <div/>
+    <label>Select a time (HH:MM AM/PM): </label>
+    <input type='time' id='time-selector' name='alarm-time' required placeholder='13:30'/>
+    <button id='submitButton' name='submit' value='Set Time' type='submit' disabled class='submit-button'
+            onclick='setToUserEnteredTime()'>
+        Set Time
+    </button>
+    <div/>
+
+    <textarea id='submit-text' disabled class='area text-area-class'>
+        </textarea>
+    <textarea id='alarm-time-text' disabled class='area alarm-text'>
+        </textarea>
+    <div/>
+
+    <div/>
+    <hr/>
+    <div>
+        <table>
+            <tr>
+                <td>
+                    <button id='debug-0600' name='debug-0600-button' type='submit' class='debug-button'
+                            onclick='setToHardCodedTime("06:00")'>
+                        DEBUG - set to 0600
+                    </button>
+                </td>
+                <td>
+                    <button id='debug-1800' name='debug-1800-button' type='submit' class='debug-button'
+                            onclick='setToHardCodedTime("18:00")'>
+                        DEBUG - set to 1800
+                    </button>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <button id='debug-now' name='debug-now-button' type='submit' class='debug-button' onclick='setAlarmNow(1)'>
+                        DEBUG - set to NOW + 1m
+                    </button>
+                </td>
+                <td>
+                    <button id='debug-now-plus-2' name='debug-nowplus2-button' type='submit' class='debug-button' onclick='setAlarmNow(2)'>
+                        DEBUG - set to NOW + 2m
+                    </button>
+                </td>
+
+            </tr>
+        </table>
+    </div>
+    <script>
+        let alarmTime = '00:00'
+        let alarmEnabled = false;
+        document.getElementById('submitButton').disabled = false;
+        document.getElementById('time-selector').value = '12:00';
+        document.getElementById('alarm-time-text').textContent = '--:--';
+
+        function turnOffAlarm() {
+            printTimeOfFunction('Request to shut off alarm received at');
+            alarmEnabled = false;
+            document.getElementById('submit-text').textContent = 'Alarm set off'
+            document.getElementById('disable-alarm').disabled = true;
+            document.getElementById('time-selector').value = null;
+            document.getElementById('alarm-time-text').textContent = '--:--';
+            // make GET web request to 192.168.4.1/alarmOff
+            const url = 'http://192.168.4.1/alarmOff';
+            console.debug('Alarm off');
+            fetch(url, {method: 'GET'}).then(function (response) {
+                if (response.ok) {
+                    printTimeOfFunction('Request to shut off alarm completed at');
+                }
+            });
+        }
+
+        function setToUserEnteredTime() {
+            printTimeOfFunction('Request to set alarm received at');
+            const timeSet = document.getElementById('time-selector').value;
+            console.log('You entered: ', timeSet);
+            document.getElementById('disable-alarm').disabled = false;
+            setAlarmHelper(timeSet);
+        }
+
+        function setToHardCodedTime(enteredTime) {
+            printTimeOfFunction('Request to set alarm received at');
+            document.getElementById('disable-alarm').disabled = false;
+            console.log('Setting Alarm to : ', enteredTime);
+            setAlarmHelper(enteredTime);
+        }
+
+        function setAlarmNow(additionalMinutes) {
+            printTimeOfFunction('Request to set alarm received at');
+            document.getElementById('disable-alarm').disabled = false;
+            let d = new Date();
+            d.setTime(d.getTime() + additionalMinutes * 60 * 1000);
+            const timeNow = d.toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit'});
+            console.log('Setting Alarm to: ', timeNow);
+            setAlarmHelper(timeNow);
+        }
+
+        function setAlarmHelper(alarmTimeParam) {
+            alarmTime = alarmTimeParam;
+            alarmEnabled = true;
+            document.getElementById('submit-text').textContent = 'The time you entered is: ' + alarmTime;
+            document.getElementById('alarm-time-text').textContent = alarmTime;
+            console.debug('The time in the helper is: ' + alarmTime);
+            // make GET web request to 192.168.4.1/setAlarm?value=<time>
+            let url = 'http://192.168.4.1/setAlarm?value=' + alarmTime;
+            fetch(url, {method: 'GET'}).then(function (response) {
+                if (response.ok) {
+                    printTimeOfFunction('Request to set alarm successfully completed at');
+                }
+            });
+        }
+
+        function printTimeOfFunction(customString) {
+            const d0 = new Date();
+            console.log(customString, ' [ISO] ', d0.toISOString());
+            console.debug(customString, ' [Local] ', d0.toLocaleString());
+        }
+    </script>
+</body>
+</html>
+)rawliteral"; //end of html code
 
 
 void setup() {
@@ -122,19 +292,11 @@ void setup() {
  
    WiFi.mode(WIFI_STA); // explicitly set mode, esp defaults to STA+AP
 
-    // put your setup code here, to run once:
-    //Serial.begin(9600);
-    
-    // WiFi.mode(WiFi_STA); // it is a good practice to make sure your code sets wifi mode how you want it.
-
-    //WiFiManager, Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wm;
 
     //reset settings - wipe credentials for testing
     //wm.resetSettings();
     bool res;
-    // res = wm.autoConnect(); // auto generated AP name from chipid
-    // res = wm.autoConnect("AutoConnectAP"); // anonymous ap
     res = wm.autoConnect("AutoConnectAP","password"); // password protected ap
 
     if(!res) {
@@ -174,7 +336,7 @@ void setup() {
     else {
       inputMessage = "No message sent";
     }
-    ///Serial.println(inputMessage);
+    //Serial.println(inputMessage);
     Serial.printf("The time is %d:%d%c\n", AT1.time_hr, AT1.time_min, AT1.time_ampm);
     request->send(200, "text/plain", "OK");
     });
@@ -237,11 +399,6 @@ void setup() {
   timerAttachInterrupt(timer0, &onTimer0, true); // edge (not level) triggered 
   timerAlarmWrite(timer0, 1000000, true); // 2000000 * 1 us = 2 s, autoreload true
 
-//  Serial.println("start timer 2");
-//  timer2 = timerBegin(0, 80, true);  // timer 0, MWDT clock period = 12.5 ns * TIMGn_Tx_WDT_CLK_PRESCALE -> 12.5 ns * 80 -> 1000 ns = 1 us, countUp
-//  timerAttachInterrupt(timer2, &onTimer2, true); // edge (not level) triggered 
-//  timerAlarmWrite(timer2, 1500000, true); // 2000000 * 1 us = 2 s, autoreload true
-
   // at least enable the timer alarms
   timerAlarmEnable(timer0); // enable
   timerAlarmEnable(timer1); // enable
@@ -281,16 +438,12 @@ void printLocalTime(){
   lcd.print(&timeinfo, "%I:%M:%S %p");
 
   int hours = timeinfo.tm_hour; //note this is in 24 hour time not 12
-  int minutes = timeinfo.tm_min; //potentially concatenate these numbers, and do the same on receiver side for ease of comparison
+  int minutes = timeinfo.tm_min; 
   int seconds = timeinfo.tm_sec;
   
     if (AT1.alarmSet){
       if(AT1.time_min == minutes){
-          //Serial.println("minutes match");
-          //Serial.println(hours);
-          //Serial.println(AT1.time_hr);
               if(AT1.time_hr == hours){
-                  //Serial.println("hours match");
                   AT1.alarmState = true;
                   AT1.followerNode = enabled; 
                  }
@@ -313,11 +466,10 @@ bool alarmSetState(bool alarmOnFlag)
   }
 }
 
-bool alarmTriggerState(bool alarmTriggerFlag) //switch case in main? depends how we integrate this code with Justins
+bool alarmTriggerState(bool alarmTriggerFlag)
 {
-  if (alarmTriggerFlag == true){ //optimize this later on by doing nested if's, with most likely to fail first (timematch)
+  if (alarmTriggerFlag == true){
     digitalWrite(buzzer,HIGH);
-    //add in if button isnt pressed wait here, if its pressed then it can exit
   }
   else
   {
@@ -343,7 +495,7 @@ bool lightState()
   Serial.println(lightValue);
   
 
-  if (lightValue < 4000){ //adjust value based on typical lightvalue
+  if (lightValue < 1500){ //adjust value based on typical lightvalue
     return false;
   }
   else{
